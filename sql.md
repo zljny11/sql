@@ -1,6 +1,14 @@
-# <center><font face="Arial" color = 'green' size ='55'> mySQL_Note (MOSH ver)</font></center>
+# CATLOGUE
+- [==L2== Basic](#l2-basic)
+- [==L3== Join method](#l3-join-method)
+- [==L4== CRUD](#l4-crud)
+- [==L5== Summarizing Data](#l5-summarizing-data)
+- [==L6== Complex Quiry](#l6-complex-quiry)
+
+## <center><font face="Arial" color = 'green' size ='55'> mySQL_Note (MOSH ver)</font></center>
 
 ## <center><font face="Arial" color = 'orange' size='5' >zljny</font></center>
+
 
 ### ==L2== Basic
 
@@ -528,4 +536,43 @@ WHERE salary >=(
 )
 ```
 
-#### 2
+#### 2. IN 
+
+```sql
+SELECT *
+FROM employees
+WHERE department_id IN (
+    SELECT department_id
+    FROM departments
+)
+```
+
+#### 3. Subquiry vs Join
+
+- Choose more readable and intuitative when  execution time is equal
+- example --- when JOIN is more readable: find customers who have ordered lettuce(id = 3)
+  
+  
+```sql
+SELECT DISTINCT customer_id, first_name, last_name
+FROM customers
+WHERE customer_id IN (
+    SELECT customer_id
+    FROM orders o
+    WHERE o.order_id IN (
+        SELECT order_id
+        FROM order_items oi
+        WHERE oi.product_id = 3
+    )
+)
+```
+
+==
+
+```sql
+SELECT DISTINCT customer_id, first_name, last_name
+FROM customers c
+JOIN orders o USING (customer_id)
+JOIN order_items oi USING (order_id)
+WHERE oi.product_id = 3
+```
