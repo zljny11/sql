@@ -1,13 +1,15 @@
-# CATLOGUE
+
+# <center><font face="Arial" color = 'green' size ='55'> mySQL_Note (MOSH ver)</font></center>
+
+# <center><font face="Arial" color = 'orange' size='5' >zljny</font></center>
+## CATLOGUE
 - [==L2== Basic](#l2-basic)
 - [==L3== Join method](#l3-join-method)
 - [==L4== CRUD](#l4-crud)
 - [==L5== Summarizing Data](#l5-summarizing-data)
 - [==L6== Complex Quiry](#l6-complex-quiry)
+- [==L7== Data Manipulation Functions](#l7-data-manipulation-functions)
 
-## <center><font face="Arial" color = 'green' size ='55'> mySQL_Note (MOSH ver)</font></center>
-
-## <center><font face="Arial" color = 'orange' size='5' >zljny</font></center>
 
 
 ### ==L2== Basic
@@ -536,12 +538,23 @@ WHERE salary >=(
 )
 ```
 
-#### 2. IN 
+#### 2. IN / = ANY
 
 ```sql
 SELECT *
 FROM employees
 WHERE department_id IN (
+    SELECT department_id
+    FROM departments
+)
+```
+
+==
+
+```sql
+SELECT *
+FROM employees
+WHERE department_id = ANY (
     SELECT department_id
     FROM departments
 )
@@ -576,3 +589,256 @@ JOIN orders o USING (customer_id)
 JOIN order_items oi USING (order_id)
 WHERE oi.product_id = 3
 ```
+
+#### 4. ALL
+
+- ALL can be used to get the iterated result of a list, resembling MAX in selection
+  
+```sql
+SELECT *
+FROM invoices
+WHERE invoice_total > (
+    SELECT MAX(invoice-total)
+    FROM invoices
+    WHERE client_id = 3
+)
+```
+
+==
+
+```sql
+SELECT *
+FROM invoices
+WHERE invoices_total > ALL(
+    SELECT invoice_total
+    FROM invoices
+    WHERE client_id = 3
+)
+```
+
+#### 5. Correlated Subquery
+
+- 当需要逐行比较，且比较的标准随着每一行变化时，就用关联子查询
+
+```sql
+// 找出每个客户的开票金额大于平均值的发票
+SELECT *
+FROM invoices i
+// alias在关联子查询中指的是外部表格的单独行（迭代的元素）
+WHERE invoice_total > (
+    SELECT AVG(invoice_total)
+    FROM invoices
+    WHERE client_id = i.client_id 
+    // i.client_id是迭代的元素
+)
+```
+
+==滑动窗口==
+```sql
+// 窗口函数改写版本：找出高于客户平均金额的发票
+SELECT
+    i.invoice_id,
+    i.client_id,
+    i.invoice_total
+FROM (
+    -- 这是一个子查询，用于计算窗口函数的结果
+    SELECT
+        *,
+        -- 核心：计算每个客户的平均发票金额，并将其作为一列返回
+        AVG(invoice_total) OVER (PARTITION BY client_id) AS client_avg_invoice
+    FROM
+        invoices
+) AS i
+WHERE
+    -- 在外部查询中，对每一行的发票金额与其客户平均值进行比较
+    i.invoice_total > i.client_avg_invoice;
+```
+
+
+
+### ==L7== Data Manipulation Functions
+
+#### 1. Numeric Functions
+- ROUND
+  
+```sql
+SELECT ROUND(5.729,2) //5.73
+```
+
+- round to the specified decimal places
+
+```sql
+SELECT ROUND(column_name, decimal_places) AS new_column_name
+FROM table_name;
+```
+
+- CEILING
+
+```sql
+SELECT CEILING(5.729) //6
+```
+
+- FLOOR
+
+```sql
+SELECT FLOOR(5.729) //5
+```
+
+- ABS
+
+```sql
+SELECT ABS(-5.729) //5.729
+```
+
+- RAND
+
+```sql
+SELECT RAND() //0.729 in 0 to 1
+```
+
+#### 2. String Functions
+
+- LENGTH
+
+```sql
+SELECT LENGTH('Hello World') //11
+```
+
+- SUBSTRING
+
+```sql
+SELECT SUBSTRING('Hello World', 1, 5) //Hello
+```
+
+- REPLACE
+
+```sql
+SELECT REPLACE('Hello World', 'World', 'MySQL') 
+//Hello MySQL                               
+```
+
+- TRIM（去掉前后的空格）
+
+```sql              
+SELECT TRIM('Hello World') //Hello World
+```
+
+- UPPER
+
+```sql
+SELECT UPPER('Hello World') //HELLO WORLD
+```
+
+- LOWER
+
+```sql
+SELECT LOWER('Hello World') //hello world
+```
+
+- LOCATE (0 as default value if not found)   
+  
+```sql
+SELECT LOCATE('World', 'Hello World') //6
+```
+#### 3. DATE Functions
+
+- NOW
+
+```sql
+SELECT NOW() //2025-12-01 17:35:33
+```
+- YEAR
+
+```sql
+SELECT * FROM orders 
+WHERE YEAR(order_date) >= YEAR(NOW())
+``` 
+- CURDATE
+
+```sql
+SELECT CURDATE() //2025-12-01
+```
+
+- CURTIME
+
+```sql
+SELECT CURTIME() //17:35:33
+```
+
+#### 4. Formatting Functions
+
+- DATE_FORMAT
+
+```sql
+SELECT DATE_FORMAT('2025-12-01', '%Y-%m-%d') //2025-12-01
+``` 
+
+- TIME_FORMAT
+
+```sql
+SELECT TIME_FORMAT('17:35:33', '%H:%i:%s') //17:35:33
+``` 
+
+#### 5. Calculating Time
+- DATE_ADD
+
+```sql
+SELECT DATE_ADD('2025-12-01', INTERVAL 1 DAY) //2025-12-02
+```
+
+- DATE_SUB
+
+```sql
+SELECT DATE_SUB('2025-12-01', INTERVAL 1 DAY) //2025-11-30
+``` 
+
+- TIMESTAMPDIFF
+
+```sql
+SELECT TIMESTAMPDIFF(DAY, '2025-12-01', '2025-12-02') //1
+```     
+
+#### 6. IFNULL and COALESCE
+
+- IFNULL: return the message if the column is null
+- COALESCE: return the first non-null value and can take multiple arguments
+
+```sql
+SELECT 
+    IFNULL(column_name, 'message') AS default_value
+    COALESCE(column_name, comment, 'message') AS default_value
+    //here comments is another column in the table
+FROM table_name;
+```
+
+#### 7. CONCAT
+
+- 将同一行的多个列连接成一个字符串
+- 如果有其中一个参数为null则这一行结果为null
+- 如果不想因为一个null参数返回null，使用CONCAT_WS(separator, str1, str2, ...)
+  
+```sql
+SELECT CONCAT(str1, str2, ...)AS new_column_name
+    CONCAT_WS(separator, str1, str2, ...) AS new_column_name
+```
+
+#### 8. IF
+
+```sql
+SELECT 
+    IF(condition, value_if_true, value_if_false) AS new_column_name
+FROM table_name;
+```
+
+#### 9. CASE
+
+```sql
+SELECT 
+    CASE
+        WHEN condition1 THEN result1
+        WHEN condition2 THEN result2
+        ELSE result3
+    END AS new_column_name 
+    //column name
+FROM table_name;
+```  
