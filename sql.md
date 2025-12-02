@@ -633,7 +633,7 @@ WHERE invoice_total > (
 )
 ```
 
-==滑动窗口==
+==WINDOW FUNCTION==
 ```sql
 // 窗口函数改写版本：找出高于客户平均金额的发票
 SELECT
@@ -711,6 +711,60 @@ FROM (
     (SELECT COUNT(*) FROM order_items WHERE order_items.product_id = products.product_id) AS number_of_orders) AS product_summary
 WHERE number_of_orders > 0;
 ``` 
+
+#### 9. Window Functions
+
+- 排名函数：
+   > `ROW_NUMBER()` (客户内部排名)此功能用于在不折叠原始行的情况下，为每个组（客户）内的行分配一个唯一的、有序的从1开始的编号。
+   
+```sql
+//找出每个客户金额最高的 3 张发票，
+//并在每张发票旁标明其在客户内部的金额排名
+SELECT
+    invoice_id,
+    client_id,
+    invoice_total,
+    -- 核心逻辑：按客户分区，按金额降序排序，分配行号
+    ROW_NUMBER() OVER (
+        PARTITION BY client_id 
+        ORDER BY invoice_total DESC) 
+        AS client_rank
+FROM
+    invoices
+-- 外部查询
+WHERE client_rank <= 3; 
+```
+- 偏移函数：
+    > `LAG(column, N)` (前后行对比)此功能用于获取窗口中当前行之前（或之后）某一行的数据，常用于时间序列分析和比较。
+    
+```sql
+//将当前发票的金额与其上一次发票的金额进行对比,
+//以分析客户消费金额的变化。
+SELECT
+    invoice_id,
+    client_id,
+    invoice_date,
+    invoice_total,
+    -- 核心逻辑：获取同一客户内、按日期排序后的前一行金额
+    LAG(invoice_total, 1) OVER (PARTITION BY client_id ORDER BY invoice_date) AS previous_invoice_total,
+    -- 通过计算来查看消费金额的增减
+    invoice_total - LAG(invoice_total, 1) 
+    OVER (PARTITION BY client_id 
+    ORDER BY invoice_date) 
+    AS amount_difference 
+    //这里不可以直接减去previous_invoice_total，
+    //因为SELECT子句几乎是同时执行的
+
+FROM
+    invoices;
+
+// LAG(column, N)获取当前行向前数第 N 行的 column 值
+//这里的 N=1 表示上一行
+//OVER()窗口定义启用窗口计算模式
+//PARTITION BY client_id窗口边界：确保只在同一个客户的发票之间进行比较
+//ORDER BY invoice_date窗口排序：定义“上一次”的标准，即按日期排序
+```
+- 实用总结记住窗口函数的三要素：做什么 (Function): ROW_NUMBER(), LAG(), AVG(), SUM() 等。分界线 (PARTITION BY): 划定组的范围（例如 client_id）。内排序 (ORDER BY): 决定组内数据的顺序，这对排名和偏移尤其重要。
 
 ### ==L7== Data Manipulation Functions
 
