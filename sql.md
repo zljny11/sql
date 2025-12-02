@@ -697,7 +697,7 @@ WHERE NOT EXISTS (
 SELECT
     product_id,
     product_name,
-    (SELECT COUNT(*) FROM order_items WHERE order_items.product_id = products.product_id) AS number_of_orders
+    (SELECT COUNT(*) FROM order_items WHERE order_items.product_id = products.product_id) AS number_of_orders 
 FROM products;
 ``` 
 
@@ -897,4 +897,75 @@ SELECT
     END AS new_column_name 
     //column name
 FROM table_name;
-```  
+```
+
+### ==L11== Transaction and Concurrency
+
+#### 1. Transaction 
+- ACID properties: Atomicity, Consistency, Isolation, Durability
+  
+#### 2. Creating Transaction
+
+- **START TRANSACTION** / **BEGIN**
+  - Start a new transaction 
+- **关闭自动提交**
+```sql
+-- Check autocommit status (default is ON)
+SHOW VARIABLES LIKE 'autocommit';
+
+-- Disable autocommit
+SET autocommit = 0;
+```
+- **COMMIT**
+  - Save changes to the database (提交修改)
+- **ROLLBACK**
+  - Undo changes if something goes wrong (回滚/撤销修改)
+
+```sql
+USE sql_store;
+
+START TRANSACTION; 
+
+INSERT INTO orders (customer_id, order_date, status)
+VALUES (1, '2019-01-01', 1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(), 1, 1, 1);
+// LAST_INSERT_ID() returns the ID of the last inserted row
+COMMIT; 
+// ROLLBACK;
+```
+
+#### 3. Locking and Concurrency
+
+- **Concurrency Problems** (并发问题)
+  - **Lost Updates**: Two transactions update the same row, last one wins.
+  - **Dirty Reads**: Reading uncommitted data.
+  - **Non-repeating Reads**: Reading different values for the same row in one transaction.
+  - **Phantom Reads**: Missing or seeing new rows in a range query.
+
+- **Isolation Levels** (隔离级别)
+  - **READ UNCOMMITTED**: Lowest level, allows dirty reads.
+  - **READ COMMITTED**: No dirty reads.
+  - **REPEATABLE READ**: (Default in MySQL) No dirty/non-repeating reads.
+  - **SERIALIZABLE**: Highest level, no concurrency problems but slow.
+
+```sql
+-- Check isolation level
+SHOW VARIABLES LIKE 'transaction_isolation';
+
+-- Set isolation level for the next transaction
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+```
+
+- **Locking** (锁)
+  - **Implicit Locking**: MySQL automatically locks rows during UPDATE/DELETE.
+  - **Explicit Locking**: Manually locking rows to prevent others from modifying them.
+
+```sql
+-- Shared Lock (S Lock): Allows read, blocks write
+SELECT * FROM customers WHERE customer_id = 1 LOCK IN SHARE MODE;
+
+-- Exclusive Lock (X Lock): Blocks read and write (FOR UPDATE)
+SELECT * FROM customers WHERE customer_id = 1 FOR UPDATE;
+```
