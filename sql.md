@@ -654,7 +654,63 @@ WHERE
     i.invoice_total > i.client_avg_invoice;
 ```
 
+#### 6. EXISTS
 
+- used to optimize the performance
+```sql
+// original one:
+// overflow when subquery is large with many rows
+SELECT *
+FROM customers 
+WHERE customer_id IN (
+    SELECT DISTINCT customer_id
+    FROM orders
+)
+
+// optimized one: using EXISTS
+SELECT *
+FROM customers c
+WHERE EXISTS (
+    SELECT customer_id
+    FROM orders o
+    WHERE o.customer_id = c.customer_id
+)
+``` 
+
+- NOT EXISTS
+  
+```sql
+// return products that havent been ordered
+
+SELECT *
+FROM products p
+WHERE NOT EXISTS (
+    SELECT product_id
+    FROM order_items oi
+    WHERE oi.product_id = p.product_id
+)   
+``` 
+
+#### 7. Subquiries in SELECT
+
+```sql
+SELECT
+    product_id,
+    product_name,
+    (SELECT COUNT(*) FROM order_items WHERE order_items.product_id = products.product_id) AS number_of_orders
+FROM products;
+``` 
+
+#### 8. Subquieries in FROM 
+
+```sql
+SELECT *
+FROM (
+    SELECT product_id,
+    product_name,
+    (SELECT COUNT(*) FROM order_items WHERE order_items.product_id = products.product_id) AS number_of_orders) AS product_summary
+WHERE number_of_orders > 0;
+``` 
 
 ### ==L7== Data Manipulation Functions
 
