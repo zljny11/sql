@@ -1041,3 +1041,162 @@ SELECT * FROM customers
 WHERE customer_id = 1 FOR UPDATE;
 ```
 
+- **Deadlock**: Two transactions wait for each other to release locks.
+  - *Example*: 
+    - Transaction A holds Lock 1, waits for Lock 2.
+    - Transaction B holds Lock 2, waits for Lock 1.
+  - *Solution*: Update records in the same order in all transactions.
+
+```sql
+-- Transaction A
+START TRANSACTION;
+UPDATE customers SET state = 'VA' WHERE customer_id = 1;
+-- ... pause ...
+UPDATE orders SET status = 1 WHERE order_id = 1; 
+-- Waits for B to release order 1
+
+-- Transaction B
+START TRANSACTION;
+UPDATE orders SET status = 1 WHERE order_id = 1;
+-- ... pause ...
+UPDATE customers SET state = 'VA' WHERE customer_id = 1; 
+-- Waits for A to release customer 1 -> DEADLOCK
+```
+
+### ==L12== Data Types
+
+#### 1. String Types
+- **CHAR(x)**: Fixed length string.
+  - Use for fixed-length data like state abbreviations (e.g., 'CA', 'NY').
+  - More efficient than VARCHAR for fixed length.
+- **VARCHAR(x)**: Variable length string.
+  - Max 65,535 characters (approx).
+  - Use for names, addresses, emails.
+- **TEXT**: For long strings.
+  - TINYTEXT (255 bytes), TEXT (64KB), MEDIUMTEXT (16MB), LONGTEXT (4GB).
+  - Use for blog posts, descriptions.
+
+#### 2. Integer Types
+- **TINYINT**: 1 byte [-128, 127]
+- **SMALLINT**: 2 bytes [-32k, 32k]
+- **MEDIUMINT**: 3 bytes [-8M, 8M]
+- **INT**: 4 bytes [-2B, 2B]
+- **BIGINT**: 8 bytes
+- **UNSIGNED**: Disallow negative values, doubling the positive range.
+  - e.g., `TINYINT UNSIGNED` [0, 255].
+- **ZEROFILL**: Pads with zeros (e.g., 0001).
+
+#### 3. Fixed-Point vs Floating-Point
+- **DECIMAL(p, s)**: Fixed-point (Exact).
+  - `p`: Precision (total digits).
+  - `s`: Scale (digits after decimal).
+  - Use for **Currency/Money** to avoid rounding errors.
+  - e.g., `DECIMAL(9, 2)` -> 1234567.89
+- **FLOAT / DOUBLE**: Floating-point (Approximate).
+  - Use for scientific calculations where slight errors are acceptable.
+
+#### 4. Boolean
+- **BOOL / BOOLEAN**: Synonym for `TINYINT(1)`.
+  - `TRUE` = 1, `FALSE` = 0.
+
+#### 5. Enums and Sets
+- **ENUM('small', 'medium', 'large')**:
+  - Restricts a column to a single value from a list.
+  - *Not recommended* (changing the list requires rebuilding the table).
+- **SET(...)**:
+  - Stores multiple values from a list.
+
+#### 6. Date and Time Types
+- **DATE**: 'YYYY-MM-DD'
+- **TIME**: 'HH:MM:SS'
+- **DATETIME**: 8 bytes. 'YYYY-MM-DD HH:MM:SS'.
+  - Range: 1000 to 9999.
+- **TIMESTAMP**: 4 bytes.
+  - Range: 1970 to 2038 (Y2K38 problem).
+  - Often used for `created_at` or `updated_at`.
+- **YEAR**: 4-digit year.
+
+#### 7. JSON Type
+- Store JSON documents efficiently.
+- Validate JSON syntax automatically.
+
+```sql
+UPDATE products
+SET properties = '
+{
+  "dimensions": [1, 2, 3],
+  "weight": 10,
+  "manufacturer": {"name": "sony"}
+}
+'
+WHERE product_id = 1;
+
+-- Extracting data
+SELECT 
+    product_id, 
+    JSON_EXTRACT(properties, '$.weight') AS weight,
+    properties -> '$.dimensions[0]' AS width, -- '->' is shorthand for JSON_EXTRACT
+    properties ->> '$.manufacturer.name' AS manufacturer_name -- '->>' removes quotes
+FROM products;
+```
+### ==L13== Designing Database
+
+### ==L14== Indexing
+
+#### 1. Creating Index
+- **Purpose**: Speed up queries by reducing scanned rows (from Full Table Scan to Index Scan).
+- **Cost**: Slows down WRITE operations (INSERT/UPDATE/DELETE) and consumes disk space.
+
+```sql
+EXPLAIN SELECT customer_id FROM customers WHERE points > 1000;
+-- type: ALL (Full Table Scan), rows: 1010
+
+CREATE INDEX idx_points ON customers (points);
+-- 创建一个名叫 idx_points 的索引，
+-- 它是基于 customers 表里的 points 这一列生成的
+EXPLAIN SELECT customer_id FROM customers WHERE points > 1000;
+-- type: range (Index Range Scan), rows: 528 (Scanned fewer rows)
+```
+
+#### 2. Index Types
+- **Primary Key Index**: Automatically created for primary key columns.
+- **Unique Index**: Ensures column values are unique.
+- **Normal Index**: Fastest for equality and range queries.
+- **Full-Text Index**: For full-text search (MyISAM, InnoDB).
+
+#### 3. View Index
+
+- **Collation**: Sorting rule (A=Ascending, NULL=Unsorted).
+- **Cardinality**: Estimated number of unique values. 
+  - Higher (more unique values) is better for index efficiency.
+- **Sub-part**: Number of indexed characters for Prefix Index (NULL for full column).
+
+```sql
+SHOW INDEXES IN customers; 
+-- 显示 customers 表的索引信息
+
+ANALYZE TABLE customers;
+-- 更新表的统计信息
+
+OPTIMIZE TABLE customers;
+-- 重建表，回收未使用的空间
+
+DROP INDEX idx_points ON customers;
+-- 删除索引
+```
+
+#### 4. Prefix Index
+- **Purpose**: Index only the first N characters of a string column (e.g., CHAR, VARCHAR, TEXT) to save space and improve performance.
+- **Use Case**: Long strings (e.g., Description, Blog Content) where the full string is too large to index efficiently.
+
+```sql
+-- Create an index on the first 5 characters of the last_name column
+CREATE INDEX idx_lastname ON customers (last_name(5));
+
+-- How to decide the length? (Check uniqueness)
+SELECT 
+    COUNT(DISTINCT LEFT(last_name, 1)), -- 1 char
+    COUNT(DISTINCT LEFT(last_name, 5)), -- 5 chars (Optimal if close to total count)
+    COUNT(DISTINCT last_name)           -- Total unique full names
+FROM customers;
+```
