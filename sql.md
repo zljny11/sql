@@ -990,19 +990,28 @@ COMMIT;
 // ROLLBACK;
 ```
 
-#### 3. Locking and Concurrency
+#### 3. Concurrency
 
 - **Concurrency Problems** (并发问题)
   - **Lost Updates**: Two transactions update the same row, last one wins.
-  - **Dirty Reads**: Reading uncommitted data.
+  - **Dirty Reads**: Reading uncommitted data. 
+  //例如事务B读取了事务A回滚的无效数据
   - **Non-repeating Reads**: Reading different values for the same row in one transaction.
+  //例如事务B读取了事务A修改后的数据 和修改前读取的数据不一致
   - **Phantom Reads**: Missing or seeing new rows in a range query.
+  //例如事务B读取了事务A插入的新的数据 发现和原数据不一致 产生幻觉
+
+- Higher isolation level, lower concurrency problems, 
+  but lower concurrency and worse performance.
+
+#### 4. Isolation Level
+![Isolation level](https://img.cdn1.vip/i/692fa634d75e4_1764730420.webp)
 
 - **Isolation Levels** (隔离级别)
-  - **READ UNCOMMITTED**: Lowest level, allows dirty reads.
-  - **READ COMMITTED**: No dirty reads.
-  - **REPEATABLE READ**: (Default in MySQL) No dirty/non-repeating reads.
-  - **SERIALIZABLE**: Highest level, no concurrency problems but slow.
+  - **READ UNCOMMITTED**: Transactions can see changes made by others even before they are committed.
+  - **READ COMMITTED**: Transactions only see changes that have been committed by other transactions.
+  - **REPEATABLE READ**: (Default in MySQL) Establishes a consistent snapshot at the first read, ignoring changes committed by other transactions to ensure consistent results.
+  - **SERIALIZABLE**: Forces transactions to run sequentially, as if one after another, by locking the accessed data.
 
 ```sql
 -- Check isolation level
@@ -1010,16 +1019,25 @@ SHOW VARIABLES LIKE 'transaction_isolation';
 
 -- Set isolation level for the next transaction
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-```
 
+-- Set isolation level for the current session
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+-- Set isolation level for all sessions
+SET GLOBAL TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+```
+#### 5. Locking
 - **Locking** (锁)
   - **Implicit Locking**: MySQL automatically locks rows during UPDATE/DELETE.
   - **Explicit Locking**: Manually locking rows to prevent others from modifying them.
 
 ```sql
 -- Shared Lock (S Lock): Allows read, blocks write
-SELECT * FROM customers WHERE customer_id = 1 LOCK IN SHARE MODE;
+SELECT * FROM customers 
+WHERE customer_id = 1 LOCK IN SHARE MODE;
 
 -- Exclusive Lock (X Lock): Blocks read and write (FOR UPDATE)
-SELECT * FROM customers WHERE customer_id = 1 FOR UPDATE;
+SELECT * FROM customers 
+WHERE customer_id = 1 FOR UPDATE;
 ```
+
