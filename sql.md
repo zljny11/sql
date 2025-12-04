@@ -1190,13 +1190,86 @@ DROP INDEX idx_points ON customers;
 - **Use Case**: Long strings (e.g., Description, Blog Content) where the full string is too large to index efficiently.
 
 ```sql
--- Create an index on the first 5 characters of the last_name column
-CREATE INDEX idx_lastname ON customers (last_name(5));
-
 -- How to decide the length? (Check uniqueness)
 SELECT 
     COUNT(DISTINCT LEFT(last_name, 1)), -- 1 char
     COUNT(DISTINCT LEFT(last_name, 5)), -- 5 chars (Optimal if close to total count)
     COUNT(DISTINCT last_name)           -- Total unique full names
 FROM customers;
+
+-- Then create an index on the first 5 characters of the last_name column
+CREATE INDEX idx_lastname ON customers (last_name(5));
 ```
+#### 4. Full-Text Index (Google)
+- **Purpose**: Efficiently search for keywords in long text columns (e.g., Title, Body).
+- **Mechanism**: Uses `MATCH(...) AGAINST(...)` instead of `LIKE` to calculate relevance scores.
+
+```sql
+-- 1. Create Full-Text Index
+CREATE FULLTEXT INDEX idx_title_body ON posts (title, body);
+
+-- 2. Search for 'react' or 'redux'
+SELECT *, MATCH(title, body) AGAINST('react redux') AS relevance
+FROM posts 
+WHERE MATCH(title, body) AGAINST('react redux');
+-- Returns rows containing 'react' or 'redux', sorted by relevance.
+WHERE MATCH(title, body) AGAINST('"react redux"' IN BOOLEAN MODE);
+-- Returns rows containing 'react' and 'redux', sorted by relevance.
+WHERE MATCH(title, body) AGAINST('+react +redux' IN BOOLEAN MODE);
+-- Returns rows containing 'react' and 'redux', sorted by relevance.
+WHERE MATCH(title, body) AGAINST('+react -redux' IN BOOLEAN MODE);
+-- Returns rows containing 'react' but not 'redux', sorted by relevance.
+```
+
+#### 5. Composite Index (dictionary)
+- **Purpose**: Optimize queries that filter on **multiple columns** (e.g., State AND Points).
+- **Mechanism**: Sorts by the first column, then by the second column (like a phone book: Last Name -> First Name).
+- **Order Matters**: Put the most frequently used or most selective column first.
+
+```sql
+-- Create a composite index on state and points
+CREATE INDEX idx_state_points ON customers (state, points);
+
+-- Efficiently handles: WHERE state = 'CA' AND points > 1000
+EXPLAIN SELECT customer_id FROM customers 
+WHERE state = 'CA' AND points > 1000;
+-- Uses idx_state_points because it can jump to 'CA' and scan points > 1000 directly.
+```
+- **Order Priority**:
+  1. **High Cardinality First**: Put the most selective column first.(With higer cardinality) 选独特性高的
+  2. **Most Frequently Used**: Put the column that is always in WHERE clause first.(Used more in query)
+  3. **Query Dependent**: Optimize for your specific queries (e.g., sorting, range).
+   
+> get cardinality:
+```sql
+SELECT COUNT(DISTINCT state) FROM customers;
+```
+
+#### 6. Index Maintenance
+- **When Indexes are Ignored**:
+  - **Expression on Column**: `WHERE points + 10 > 2000` (Bad) -> `WHERE points > 1990` (Good).
+  - **Function on Column**: `WHERE YEAR(date) = 2019` (Bad) -> `WHERE date BETWEEN '2019-01-01' AND '2019-12-31'` (Good).
+  - **Implicit Type Conversion**: Comparing string column with number.
+- **Rule**: Always keep the indexed column **alone** on one side of the comparison operator.
+
+#### 7. Covering Index
+- **Definition**: An index that contains (covers) **all** the columns needed for a query.
+- **Benefit**: Extremely fast because MySQL can satisfy the query using **only the index** without reading the actual table (No "Table Access").
+- **Indicator**: `Extra: Using index` in EXPLAIN output.
+
+```sql
+-- Index: idx_state_points (state, points) + implicitly (customer_id)
+// customer_id is not in the index, 
+//but it is auto included in secondary index as the primary key
+EXPLAIN SELECT customer_id, state FROM customers ORDER BY state;
+-- Result: Extra = Using index (All data is in the index)
+```
+
+#### 8. Index Maintenance (Cleanup)
+- **Duplicate Index**: Same columns, same order, same type.
+  - *Example*: `INDEX (A)` and `INDEX (A)`.
+  - *Action*: Delete one.
+- **Redundant Index**: One index is a prefix of another.
+  - *Example*: `INDEX (A, B)` already covers `INDEX (A)`.
+  - *Action*: Delete `INDEX (A)` because `(A, B)` can handle queries for `A` alone.
+  - *Note*: `INDEX (B, A)` is NOT redundant to `(A, B)`.
