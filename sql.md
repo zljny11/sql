@@ -1246,13 +1246,22 @@ SELECT COUNT(DISTINCT state) FROM customers;
 ```
 
 #### 6. Index Maintenance
-- **When Indexes are Ignored**:
+
+- **Duplicate Index**: Same columns, same order, same type.
+  - *Example*: `INDEX (A)` and `INDEX (A)`.
+  - *Action*: Delete one.
+- **Redundant Index**: One index is a prefix of another.
+  - *Example*: `INDEX (A, B)` already covers `INDEX (A)`.
+  - *Action*: Delete `INDEX (A)` because `(A, B)` can handle queries for `A` alone.
+  - *Note*: `INDEX (B, A)` is NOT redundant to `(A, B)`.
+
+#### 7. When Indexes are Ignored
   - **Expression on Column**: `WHERE points + 10 > 2000` (Bad) -> `WHERE points > 1990` (Good).
   - **Function on Column**: `WHERE YEAR(date) = 2019` (Bad) -> `WHERE date BETWEEN '2019-01-01' AND '2019-12-31'` (Good).
   - **Implicit Type Conversion**: Comparing string column with number.
 - **Rule**: Always keep the indexed column **alone** on one side of the comparison operator.
 
-#### 7. Covering Index
+#### 8. Covering Index
 - **Definition**: An index that contains (covers) **all** the columns needed for a query.
 - **Benefit**: Extremely fast because MySQL can satisfy the query using **only the index** without reading the actual table (No "Table Access").
 - **Indicator**: `Extra: Using index` in EXPLAIN output.
@@ -1264,12 +1273,19 @@ SELECT COUNT(DISTINCT state) FROM customers;
 EXPLAIN SELECT customer_id, state FROM customers ORDER BY state;
 -- Result: Extra = Using index (All data is in the index)
 ```
+#### 9. Using Indexes for Sorting
+- **Goal**: Avoid expensive `Filesort` by using the index's natural order.
+- **Index**: `(state, points)`
 
-#### 8. Index Maintenance (Cleanup)
-- **Duplicate Index**: Same columns, same order, same type.
-  - *Example*: `INDEX (A)` and `INDEX (A)`.
-  - *Action*: Delete one.
-- **Redundant Index**: One index is a prefix of another.
-  - *Example*: `INDEX (A, B)` already covers `INDEX (A)`.
-  - *Action*: Delete `INDEX (A)` because `(A, B)` can handle queries for `A` alone.
-  - *Note*: `INDEX (B, A)` is NOT redundant to `(A, B)`.
+| Query                                | Status     | Reason                                               |
+| :----------------------------------- | :--------- | :--------------------------------------------------- |
+| `ORDER BY state`                     | ✅ Index    | Matches 1st column.                                  |
+| `ORDER BY state, points`             | ✅ Index    | Matches full index order.                            |
+| `WHERE state = 'CA' ORDER BY points` | ✅ Index    | `state` is constant, `points` is sorted within 'CA'. |
+| `ORDER BY points`                    | ❌ Filesort | Skips 1st column (`state`).                          |
+| `ORDER BY state, id`                 | ❌ Filesort | `id` is not in index definition (explicitly).        |
+| `ORDER BY state ASC, points DESC`    | ❌ Filesort | Mixed direction (unless MySQL 8+ Descending Index).  |
+
+- **Check**: `EXPLAIN` -> `Extra`:
+  - `Using filesort`: Bad (Sorting in memory/disk).
+  - `NULL` / `Using index`: Good (Using pre-sorted index).
