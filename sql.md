@@ -4,13 +4,14 @@
 # <center><font face="Arial" color = 'orange' size='5' >zljny</font></center>
 ## CATLOGUE
 - [==L2== Basic](#l2-basic)
-- [==L3== Join method](#l3-join-method)
+- [==L3== Join](#l3-join)
 - [==L4== CRUD](#l4-crud)
 - [==L5== Summarizing Data](#l5-summarizing-data)
 - [==L6== Complex Quiry](#l6-complex-quiry)
 - [==L7== Data Manipulation Functions](#l7-data-manipulation-functions)
-
-
+- [==L11== Transaction and Concurrency](#l11-transaction-and-concurrency)
+- [==L12== Data Types](#l12-data-types)
+- [==L14== Indexing](#l14-indexing)
 
 ### ==L2== Basic
 
@@ -139,7 +140,7 @@ WHERE customer REGEXP 'br|bu'
 WHERE customer REGEXP 'b[ru]'
 ```
 
-### ==L3== Join method
+### ==L3== Join 
 
 #### 1. Inner Join
 
@@ -226,7 +227,7 @@ RIGHT JOIN customers c
 ORDER BY c.customer_id;
 ```
 
-- ***Left join means the joined chart is less important（Used More）***
+- ***Left join means the joined chart is less important（Used More）FROM的表是主表***
   
 ```sql
 SELECT
